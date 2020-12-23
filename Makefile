@@ -5,3 +5,6 @@ model_image:
 
 prep_data:
 	python3 prepare_data.py
+
+train:
+	python3 train.py

@@ -6,7 +6,7 @@ import numpy as np
 def model_factory(network_input: np.ndarray, num_samples: int) -> Sequential:
     model = Sequential()
     model.add(LSTM(
-        256,
+        512,
         input_shape=(network_input.shape[1], network_input.shape[2]),
         return_sequences=True
     ))
