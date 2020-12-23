@@ -1,4 +1,4 @@
-from prepare_data import PrepareData
+from src.prepare_data import PrepareData
 
 
 def test_extract_notes():

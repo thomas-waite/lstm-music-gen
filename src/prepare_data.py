@@ -7,15 +7,15 @@ from typing import Any, List, Tuple
 
 
 class PrepareData():
-    def __init__(self, note_data_path: str = "midi_songs/*.mid"):
-        self.notes = self.extract_notes(note_data_path)
-        self.num_unique_notes = self.get_num_unique_notes(self.notes)
+    def __init__(self, note_data_path: str = "data/notes", note_file_name: str = "midi_songs/*.mid"):
+        self.notes = self.extract_notes(note_data_path, note_file_name)
+        self.num_unique_notes = self.get_num_pitches()
         self.pitch_names = self.get_pitchnames(self.notes)
         self.note_to_int = dict((note, number)
                                 for number, note in enumerate(self.pitch_names))
 
-    def get_num_unique_notes(self, notes: List) -> int:
-        return len(set(notes))
+    def get_num_pitches(self) -> int:
+        return len(set(self.notes))
 
     def get_pitchnames(self, notes: List) -> List:
         return sorted(set(item for item in notes))
@@ -23,7 +23,7 @@ class PrepareData():
     def get_notes(self) -> List:
         return self.notes
 
-    def extract_notes(self, path: str) -> List[Any]:
+    def extract_notes(self, note_data_path: str, note_file_names: str) -> List[Any]:
         """Extract all the notes from the data MIDI folder. Place all notes
         into an array
 
@@ -32,12 +32,14 @@ class PrepareData():
         """
         notes = []
 
+        # If notes have already been extracted, serialise that data and use that
+        # Otherwise, extract all notes
         try:
-            pickle_in = open('data/notes', 'rb')
+            pickle_in = open(note_data_path, 'rb')
             notes = pickle.load(pickle_in)
             pickle_in.close()
         except:
-            for file in glob.glob(path):
+            for file in glob.glob(note_file_names):
                 midi = converter.parse(file)
 
                 notes_to_parse = None
@@ -54,12 +56,12 @@ class PrepareData():
                         notes.append('.'.join(str(n)
                                               for n in element.normalOrder))
 
-            with open('data/notes', 'wb') as filepath:
+            with open(note_data_path, 'wb') as filepath:
                 pickle.dump(notes, filepath)
 
         return notes
 
-    def generate_training_data(self, sequence_length: int = 100) -> Tuple[np.ndarray, np.ndarray, int]:
+    def generate_training_data(self, sequence_length: int = 100) -> Tuple[np.ndarray, np.ndarray]:
         """Take all extracted notes and convert into training data. 
 
         Network input/training data: Many sequences of 100 notes
@@ -87,13 +89,16 @@ class PrepareData():
         # i.e. [ [note, ..., 100th note], [note, ..., 100th note], ..., num_samples[note, ..., 100th note]]
         network_input = np.reshape(
             network_input, (num_samples, sequence_length, 1))
-        num_unique_notes = self.get_num_unique_notes(self.notes)
+        num_unique_notes = self.get_num_pitches()
         network_input = network_input / float(num_unique_notes)
 
         # perform one-hot encoding
         # network_output contains 158 different pitches
+        # TODO, work out what this is doing
+        # print('network_output before one-hot: ', network_output)
         network_output = np_utils.to_categorical(network_output)
-        print('network_input shape: ', network_input.shape)
-        print('network_output shape: ', network_output.shape)
+        # print('network output after one-hot: ', network_output)
+        # print('network_input shape: ', network_input.shape)
+        # print('network_output shape: ', network_output.shape)
 
-        return network_input, network_output, num_samples
+        return network_input, network_output
