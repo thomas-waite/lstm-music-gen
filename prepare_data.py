@@ -2,84 +2,98 @@ from music21 import converter, instrument, note, chord
 import numpy as np
 from keras.utils import np_utils
 import glob
-from typing import Any, List, Optional
+import pickle
+from typing import Any, List, Tuple
 
 
-def extract_notes() -> List[Any]:
-    """Extract all the notes from the data MIDI folder. Place all notes
-    into an array
+class PrepareData():
+    def __init__(self, note_data_path: str = "midi_songs/*.mid"):
+        self.notes = self.extract_notes(note_data_path)
+        self.num_unique_notes = self.get_num_unique_notes(self.notes)
+        self.pitch_names = self.get_pitchnames(self.notes)
+        self.note_to_int = dict((note, number)
+                                for number, note in enumerate(self.pitch_names))
 
-    Returns:
-        List[Any]: [description]
-    """
-    notes = []
+    def get_num_unique_notes(self, notes: List) -> int:
+        return len(set(notes))
 
-    for file in glob.glob("midi_songs/*.mid"):
-        midi = converter.parse(file)
+    def get_pitchnames(self, notes: List) -> List:
+        return sorted(set(item for item in notes))
 
-        notes_to_parse = None
-        parts = instrument.partitionByInstrument(midi)
-        if parts:  # file has instrument parts
-            notes_to_parse = parts.parts[0].recurse()
-        else:  # file has notes in a flat structure
-            notes_to_parse = midi.flat.notes
+    def get_notes(self) -> List:
+        return self.notes
 
-        for element in notes_to_parse:
-            if isinstance(element, note.Note):
-                notes.append(str(element.pitch))
-            elif isinstance(element, chord.Chord):
-                notes.append('.'.join(str(n) for n in element.normalOrder))
-    return notes
+    def extract_notes(self, path: str) -> List[Any]:
+        """Extract all the notes from the data MIDI folder. Place all notes
+        into an array
 
+        Returns:
+            List[Any]: [description]
+        """
+        notes = []
 
-def generate_training_data(notes: List[Any], sequence_length: int = 100):
-    """Take all extracted notes and convert into training data. 
+        try:
+            pickle_in = open('data/notes', 'rb')
+            notes = pickle.load(pickle_in)
+            pickle_in.close()
+        except:
+            for file in glob.glob(path):
+                midi = converter.parse(file)
 
-    Network input/training data: Many sequences of 100 notes
-    Network output/label: Note following the 100th, the 101st note
+                notes_to_parse = None
+                parts = instrument.partitionByInstrument(midi)
+                if parts:  # file has instrument parts
+                    notes_to_parse = parts.parts[0].recurse()
+                else:  # file has notes in a flat structure
+                    notes_to_parse = midi.flat.notes
 
-    Args:
-        notes (List[Any]): [description]
-    """
+                for element in notes_to_parse:
+                    if isinstance(element, note.Note):
+                        notes.append(str(element.pitch))
+                    elif isinstance(element, chord.Chord):
+                        notes.append('.'.join(str(n)
+                                              for n in element.normalOrder))
 
-    # get all pitch names - sort all notes and create a list of them
-    pitchnames = sorted(set(item for item in notes))
+            with open('data/notes', 'wb') as filepath:
+                pickle.dump(notes, filepath)
 
-    # create a dictionary to map pitches to integers
-    note_to_int = dict((note, number)
-                       for number, note in enumerate(pitchnames))
-    network_input = []
-    network_output = []
+        return notes
 
-    # this code is getting lots of sequences of notes, and then getting the next note that follows
-    # note that follows is likely the 'label', the proceeding sequence are the inputs
-    # create input sequences and the corresponding outputs
-    for i in range(0, len(notes) - sequence_length, 1):
-        # sequence of notes, like 100 notes
-        sequence_in = notes[i:i + sequence_length]
-        # note following the input note sequence
-        sequence_out = notes[i + sequence_length]
+    def generate_training_data(self, sequence_length: int = 100) -> Tuple[np.ndarray, np.ndarray, int]:
+        """Take all extracted notes and convert into training data. 
 
-        network_input.append([note_to_int[char] for char in sequence_in])
-        network_output.append(note_to_int[sequence_out])
+        Network input/training data: Many sequences of 100 notes
+        Network output/label: Note following the 100th, the 101st note
 
-    num_samples = len(network_input)
+        Args:
+            notes (List[Any]): [description]
+        """
+        network_input = []
+        network_output = []
 
-    # reshape the input into a format compatible with LSTM layers
-    # Array with num_samples of notes. Each sample has 100 notes and they are flat.
-    # i.e. [ [note, ..., 100th note], [note, ..., 100th note], ..., num_samples[note, ..., 100th note]]
-    network_input = np.reshape(
-        network_input, (num_samples, sequence_length, 1))
+        # Generate sequence of 100nth input notes, followed by the 101nth note.
+        # First 100n notes are inputs, 101n note is the predicted output
+        for i in range(0, len(self.notes) - sequence_length, 1):
+            sequence_in = self.notes[i:i + sequence_length]
+            sequence_out = self.notes[i + sequence_length]
+            network_input.append([self.note_to_int[char]
+                                  for char in sequence_in])
+            network_output.append(self.note_to_int[sequence_out])
 
-    # normalize input
-    # need to divide by the
-    network_input = network_input / float(num_samples)
+        num_samples = len(network_input)
 
-    # perform one-hot encoding
-    network_output = np_utils.to_categorical(network_output)
+        # Reshape the input into a format compatible with LSTM layers
+        # Array with num_samples of notes. Each sample has 100 notes and they are flat.
+        # i.e. [ [note, ..., 100th note], [note, ..., 100th note], ..., num_samples[note, ..., 100th note]]
+        network_input = np.reshape(
+            network_input, (num_samples, sequence_length, 1))
+        num_unique_notes = self.get_num_unique_notes(self.notes)
+        network_input = network_input / float(num_unique_notes)
 
-    return network_input, network_output
+        # perform one-hot encoding
+        # network_output contains 158 different pitches
+        network_output = np_utils.to_categorical(network_output)
+        print('network_input shape: ', network_input.shape)
+        print('network_output shape: ', network_output.shape)
 
-
-notes = extract_notes()
-network_input, network_output = generate_training_data(notes)
+        return network_input, network_output, num_samples
