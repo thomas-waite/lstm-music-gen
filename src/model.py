@@ -3,7 +3,7 @@ from keras.layers import LSTM, Dropout, Dense, Activation
 import numpy as np
 
 
-def model_factory(network_input: np.ndarray, num_samples: int) -> Sequential:
+def model_factory(network_input: np.ndarray, num_samples: int, load_trained=False) -> Sequential:
     model = Sequential()
     model.add(LSTM(
         512,
@@ -19,4 +19,7 @@ def model_factory(network_input: np.ndarray, num_samples: int) -> Sequential:
     model.add(Dense(num_samples))
     model.add(Activation('softmax'))
     model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
+
+    if load_trained:
+        model.load_weights('weights/weights.hdf5')
     return model

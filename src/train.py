@@ -1,8 +1,8 @@
-from prepare_data import PrepareData
+from src.prepare_data import PrepareData
 from keras.callbacks import ModelCheckpoint
 from keras.models import Sequential
 import numpy as np
-from model import model_factory
+from src.model import model_factory
 
 
 def execute_training():

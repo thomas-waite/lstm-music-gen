@@ -93,12 +93,10 @@ class PrepareData():
         network_input = network_input / float(num_unique_notes)
 
         # perform one-hot encoding
-        # network_output contains 158 different pitches
-        # TODO, work out what this is doing
-        # print('network_output before one-hot: ', network_output)
         network_output = np_utils.to_categorical(network_output)
-        # print('network output after one-hot: ', network_output)
-        # print('network_input shape: ', network_input.shape)
-        # print('network_output shape: ', network_output.shape)
 
         return network_input, network_output
+
+
+if __name__ == "__main__":
+    data_prep = PrepareData()

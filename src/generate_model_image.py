@@ -1,5 +1,5 @@
 from keras.utils.vis_utils import plot_model
-from model import model_factory
+from src.model import model_factory
 import numpy as np
 
 num_samples = 1
